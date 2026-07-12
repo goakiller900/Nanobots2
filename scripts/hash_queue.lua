@@ -87,12 +87,9 @@ function Queue.execute(t, event)
         return t
     end
 
+    t[event.tick] = nil
     for _, data in ipairs(entries) do
         local index = data.hash
-        local action = Queue[data.action]
-        if action then
-            action(data)
-        end
         local bucket = index and t._hash[index]
         if bucket then
             bucket[data.action] = nil
@@ -101,7 +98,13 @@ function Queue.execute(t, event)
             end
         end
     end
-    t[event.tick] = nil
+
+    for _, data in ipairs(entries) do
+        local action = Queue[data.action]
+        if action then
+            action(data)
+        end
+    end
     return t
 end
 
