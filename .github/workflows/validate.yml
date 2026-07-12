@@ -1,0 +1,75 @@
+name: Validate Nanobots continuation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --quiet jq lua5.2
+
+      - name: Validate metadata and renamed imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(jq -r .name info.json)" = "Nanobots2-continued"
+          [[ "$(jq -r .version info.json)" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(jq -r .factorio_version info.json)" = "2.1"
+          jq -e '.dependencies | index("stdlib2-continued >= 2.1.0") != null' info.json >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          legacy = ['__' + 'Nanobots2' + '__/', '__' + 'stdlib2' + '__/']
+          hits = []
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or '.git' in path.parts or '.github' in path.parts:
+                  continue
+              text = path.read_text(encoding='utf-8', errors='ignore')
+              if any(token in text for token in legacy):
+                  hits.append(str(path))
+          if hits:
+              raise SystemExit('Legacy mod import paths remain:\n' + '\n'.join(hits))
+          PY
+
+      - name: Validate referenced mod assets
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path('.')
+          missing = []
+          for path in root.rglob('*'):
+              if not path.is_file() or '.git' in path.parts or '.github' in path.parts:
+                  continue
+              if path.suffix not in {'.lua', '.cfg', '.json', '.md', '.txt'}:
+                  continue
+              text = path.read_text(encoding='utf-8', errors='ignore')
+              for match in re.findall(r'__Nanobots2-continued__/([^\"\']+)', text):
+                  target = root / match
+                  if not target.is_file():
+                      missing.append(f'{path}: {target}')
+          if missing:
+              raise SystemExit('Missing assets:\n' + '\n'.join(sorted(set(missing))))
+          PY
+
+      - name: Parse Lua 5.2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            luac5.2 -p "$file"
+          done < <(find . -type f -name '*.lua' -not -path './.git/*' -print0)
