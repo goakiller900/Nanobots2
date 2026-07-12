@@ -32,7 +32,7 @@ jobs:
           rm -rf /tmp/nanobots-port
           mkdir -p /tmp/nanobots-port
           unzip -q .port-payload/final.zip -d /tmp/nanobots-port
-          rsync -a /tmp/nanobots-port/files/ ./
+          cp -a /tmp/nanobots-port/files/. ./
           while IFS= read -r path; do
             [[ -n "$path" ]] && rm -rf -- "$path"
           done < /tmp/nanobots-port/delete.txt
