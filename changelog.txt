@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.2
+Date: 2026-07-12
+  Bugfixes:
+    - Fixed Factorio 2.1 quality handling for entity ghosts and upgrade targets.
+    - Replaced the removed upgrade-direction API with the current in-place upgrade API.
+    - Fixed tile-ghost revival detection and loss of nearby items when entity revival fails.
+    - Prevented failed queued actions from leaving permanent queue hashes.
+    - Added delayed-action character and surface validation with safe item refunds.
+    - Fixed optional PickerInventoryTools shortcut prototypes and request-setting localisation.
+    - Fixed server-console commands and exact-capacity combat robot launches.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 3.4.1
 Date: 2026-07-12
   Changes:

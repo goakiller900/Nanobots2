@@ -175,9 +175,9 @@ local function process_ready_chips(player, equipment)
             local existing = #player.following_robots
             local next_capsule = 1
             local capsule = capsule_data[next_capsule]
-            while capsule and existing < (max_bots - capsule.qty) and capsule.count > 0 and num_launchers > 0 do
+            while capsule and existing + capsule.qty <= max_bots and capsule.count > 0 and num_launchers > 0 do
                 local launcher = launchers[num_launchers]
-                while capsule and existing < (max_bots - capsule.qty) and launcher and launcher.energy >= 500 do
+                while capsule and existing + capsule.qty <= max_bots and launcher and launcher.energy >= 500 do
                     if player.remove_item({name = capsule.capsule, count = 1}) == 1 then
                         player.surface.create_entity {name = capsule.unit, position = player.character.position, force = player.force, target = player.character}
                         launcher.energy = launcher.energy - 500

@@ -2,8 +2,8 @@ local Interface = require('__stdlib2-continued__/stdlib/scripts/interface')
 require('__stdlib2-continued__/stdlib/utils/string')
 
 local function commands(event)
-    local player = game.players[event.player_index]
-    if player.admin then
+    local player = event.player_index and game.get_player(event.player_index)
+    if not player or player.admin then
         local params = event.parameter and event.parameter:split(' ') or {}
         if params[1] == 'reset' then
             if params[2] == 'mod' then
