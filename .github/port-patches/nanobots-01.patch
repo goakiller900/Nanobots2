@@ -1,0 +1,130 @@
+-        if inserted ~= count then
+-            new_stacks[#new_stacks + 1] = { name = name, count = count - inserted, health = health }
++    local stacks = item_stacks or {}
++    if stacks.name then
++        stacks = {stacks}
++    end
++
++    local remaining = {}
++    for _, stack in pairs(stacks) do
++        local definition = item_definition(stack)
++        local inserted = entity.insert(definition)
++        if inserted < definition.count then
++            definition.count = definition.count - inserted
++            remaining[#remaining + 1] = definition
+         end
+     end
+-    return new_stacks
++    return remaining
+ end
+ 
+ --- Scan the ground under a ghost entities collision box for items and return an array of SimpleItemStack.
+@@ -215,14 +237,14 @@
+     local surface, position, bouding_box = entity.surface, entity.position, entity.ghost_prototype.selection_box
+     local area = Area.offset(bouding_box, position)
+     for _, item_on_ground in pairs(surface.find_entities_filtered { name = 'item-on-ground', area = area }) do
+-        item_stacks[#item_stacks + 1] = { name = item_on_ground.stack.name, count = item_on_ground.stack.count, health = item_on_ground.health or 1 }
++        item_stacks[#item_stacks + 1] = item_definition(item_on_ground.stack)
+         item_on_ground.destroy()
+     end
+     local inserter_area = Area.expand(area, 3)
+     for _, inserter in pairs(surface.find_entities_filtered { area = inserter_area, type = 'inserter' }) do
+         local stack = inserter.held_stack
+         if stack.valid_for_read and Position.inside(inserter.held_stack_position, area) then
+-            item_stacks[#item_stacks + 1] = { name = stack.name, count = stack.count, health = stack.health or 1 }
++            item_stacks[#item_stacks + 1] = item_definition(stack)
+             stack.clear()
+         end
+     end
+@@ -236,61 +258,68 @@
+ --- @param at_least_one boolean #return as long as count > 0
+ --- @return ItemStackDefinition|nil
+ local function get_items_from_inv(entity, item_stack, cheat, at_least_one)
++    local wanted = item_stack.count or 1
++    local quality = item_quality_name(item_stack)
+     if cheat then
+-        return { name = item_stack.name, count = item_stack.count, health = 1 }
+-    else
+-        local sources
+-        if entity.vehicle and entity.vehicle.train then
+-            sources = entity.vehicle.train.cargo_wagons
+-            sources[#sources + 1] = entity.character
+-        elseif entity.vehicle then
+-            sources = { entity.vehicle, entity.character }
+-        else
+-            sources = { entity.character }
+-        end
++        return {name = item_stack.name, count = wanted, quality = quality, health = 1}
++    end
+ 
+-        local new_item_stack = { name = item_stack.name, count = 0, health = 1 }
++    local sources = {}
++    if entity.vehicle and entity.vehicle.train then
++        for _, wagon in pairs(entity.vehicle.train.cargo_wagons) do
++            sources[#sources + 1] = wagon
++        end
++    elseif entity.vehicle then
++        sources[#sources + 1] = entity.vehicle
++    end
++    if entity.character then
++        sources[#sources + 1] = entity.character
++    end
+ 
+-        local count = item_stack.count
++    local candidates = {}
++    local available = 0
++    local function add_stack(stack)
++        if stack and stack.valid_for_read and stack.name == item_stack.name and item_quality_name(stack) == quality then
++            candidates[#candidates + 1] = stack
++            available = available + stack.count
++        end
++    end
+ 
+-        for _, source in pairs(sources) do
+-            for _, inv in pairs(inv_list) do
+-                local inventory = source.get_inventory(inv)
+-                if inventory and inventory.valid and inventory.get_item_count(item_stack.name) > 0 then
+-                    local stack = inventory.find_item_stack(item_stack.name)
+-                    while stack do
+-                        local removed = math.min(stack.count, count)
+-                        new_item_stack.count = new_item_stack.count + removed
+-                        new_item_stack.health = new_item_stack.health * stack.health
+-                        stack.count = stack.count - removed
+-                        count = count - removed
+-
+-                        if new_item_stack.count == item_stack.count then
+-                            return new_item_stack
+-                        end
+-                        stack = inventory.find_item_stack(item_stack.name)
+-                    end
++    for _, source in pairs(sources) do
++        for _, inv in pairs(inv_list) do
++            local inventory = source.get_inventory(inv)
++            if inventory and inventory.valid then
++                for index = 1, #inventory do
++                    add_stack(inventory[index])
+                 end
+             end
+         end
+-        -- If we havn't returned here check the hand!
+-        if entity.is_player() then
+-            local stack = entity.cursor_stack
+-            if stack and stack.valid_for_read and stack.name == item_stack.name then
+-                local removed = math.min(stack.count, count)
+-                new_item_stack.count = new_item_stack.count + removed
+-                new_item_stack.health = new_item_stack.health * stack.health
+-                stack.count = stack.count - count
+-            end
+-        end
+-        if new_item_stack.count == item_stack.count then
+-            return new_item_stack
+-        elseif new_item_stack.count > 0 and at_least_one then
+-            return new_item_stack
+-        else
+-            return nil
+-        end
+     end
++    if entity.is_player() then
++        add_stack(entity.cursor_stack)
++    end
++
