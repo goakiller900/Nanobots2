@@ -23,16 +23,35 @@ jobs:
           ref: agent/nanobots-2.1-continued
           fetch-depth: 0
 
-      - name: Apply complete port
+      - name: Verify payload
         shell: bash
         run: |
-          set -euo pipefail
-          test -s .port-payload/final.zip
-          unzip -tq .port-payload/final.zip
+          set -euxo pipefail
+          pwd
+          ls -l .port-payload/final.zip
+          file .port-payload/final.zip
+          sha256sum .port-payload/final.zip
+          unzip -t .port-payload/final.zip
+
+      - name: Extract payload
+        shell: bash
+        run: |
+          set -euxo pipefail
           rm -rf /tmp/nanobots-port
           mkdir -p /tmp/nanobots-port
-          unzip -q .port-payload/final.zip -d /tmp/nanobots-port
+          unzip .port-payload/final.zip -d /tmp/nanobots-port
+          find /tmp/nanobots-port -maxdepth 3 -type f | sort
+
+      - name: Copy completed source
+        shell: bash
+        run: |
+          set -euxo pipefail
           cp -a /tmp/nanobots-port/files/. ./
+
+      - name: Remove migration files
+        shell: bash
+        run: |
+          set -euxo pipefail
           while IFS= read -r path; do
             [[ -n "$path" ]] && rm -rf -- "$path"
           done < /tmp/nanobots-port/delete.txt
