@@ -1,5 +1,5 @@
-local Interface = require('__stdlib2__/stdlib/scripts/interface')
-require('__stdlib2__/stdlib/utils/string')
+local Interface = require('__stdlib2-continued__/stdlib/scripts/interface')
+require('__stdlib2-continued__/stdlib/utils/string')
 
 local function commands(event)
     local player = game.players[event.player_index]
