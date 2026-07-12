@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.1
+Date: 2026-07-12
+  Changes:
+    - Completed the Factorio 2.1 runtime port that was incomplete in version 3.4.0.
+    - Removed temporary migration payloads, patch files, and one-time workflows from the repository and release package.
+    - Improved the headless Factorio test workflow and retained diagnostic logs for failed loads.
+  Bugfixes:
+    - Fixed quality-aware inventory transfers, item request proxies, ghost revival, upgrades, returns, and spills.
+    - Fixed missing prototype, empty ammunition, invalid entity, and empty multiplayer-server edge cases.
+    - Fixed the leaked equipment variable and the invalid ghost upgrade condition.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 3.4.0
 Date: 2026-07-12
   Features:
