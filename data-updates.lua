@@ -1,22 +1,37 @@
-local Recipe = require('__stdlib2__/stdlib/data/recipe')
+local Recipe = require('__stdlib2-continued__/stdlib/data/recipe')
 
 require('prototypes/technology/shortcuts')
 
--- bobmods recipe changes
-if mods['boblibrary'] then
+local function item_exists(name)
+    return data.raw.item[name] or data.raw.tool[name] or data.raw.module[name] or data.raw.capsule[name]
+end
 
-    local key = 'bobmods-logistics-disableroboports'
-    if settings["startup"][key] and settings["startup"][key].value then
-        Recipe('roboport-interface'):replace_ingredient('roboport', 'bob-logistic-zone-expander')
+local function replace_if_available(recipe_name, old_name, new_name)
+    if data.raw.recipe[recipe_name] and item_exists(new_name) then
+        Recipe(recipe_name):replace_ingredient(old_name, new_name)
     end
-    Recipe('gun-nano-emitter'):replace_ingredient('electronic-circuit', 'basic-circuit-board')
-    Recipe('ammo-nano-constructors'):replace_ingredient('electronic-circuit', 'basic-circuit-board')
-    Recipe('ammo-nano-termites'):replace_ingredient('electronic-circuit', 'basic-circuit-board')
+end
 
-    Recipe('equipment-bot-chip-items'):add_ingredient('robot-brain-construction')
-    Recipe('equipment-bot-chip-trees'):add_ingredient('robot-brain-construction')
-    Recipe('equipment-bot-chip-nanointerface'):add_ingredient('robot-brain-construction')
-    Recipe('equipment-bot-chip-nanointerface'):add_ingredient('gun-nano-emitter')
-    Recipe('equipment-bot-chip-launcher'):add_ingredient('robot-brain-combat')
-    Recipe('equipment-bot-chip-feeder'):add_ingredient('robot-brain-combat')
+local function add_if_available(recipe_name, item_name)
+    if data.raw.recipe[recipe_name] and item_exists(item_name) then
+        Recipe(recipe_name):add_ingredient({type = 'item', name = item_name, amount = 1})
+    end
+end
+
+if mods.boblibrary then
+    local key = 'bobmods-logistics-disableroboports'
+    if settings.startup[key] and settings.startup[key].value then
+        replace_if_available('roboport-interface', 'roboport', 'bob-logistic-zone-expander')
+    end
+
+    replace_if_available('gun-nano-emitter', 'electronic-circuit', 'basic-circuit-board')
+    replace_if_available('ammo-nano-constructors', 'electronic-circuit', 'basic-circuit-board')
+    replace_if_available('ammo-nano-termites', 'electronic-circuit', 'basic-circuit-board')
+
+    add_if_available('equipment-bot-chip-items', 'robot-brain-construction')
+    add_if_available('equipment-bot-chip-trees', 'robot-brain-construction')
+    add_if_available('equipment-bot-chip-nanointerface', 'robot-brain-construction')
+    add_if_available('equipment-bot-chip-nanointerface', 'gun-nano-emitter')
+    add_if_available('equipment-bot-chip-launcher', 'robot-brain-combat')
+    add_if_available('equipment-bot-chip-feeder', 'robot-brain-combat')
 end
