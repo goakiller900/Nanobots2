@@ -73,7 +73,6 @@ jobs:
         run: |
           set -o pipefail
           timeout 180 factorio/bin/x64/factorio \
-            --disable-audio \
             --mod-directory "$PWD/mods" \
             --create "$PWD/test-save.zip" \
             2>&1 | tee "factorio-${CONFIGURATION}.log"
