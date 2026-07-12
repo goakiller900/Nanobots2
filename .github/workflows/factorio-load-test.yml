@@ -65,10 +65,43 @@ jobs:
             '{mods: [$enabled[] | {name: ., enabled: true}]}' > mods/mod-list.json
 
       - name: Create test save
+        id: factorio
+        continue-on-error: true
         shell: bash
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
         run: |
-          set -euo pipefail
+          set -o pipefail
           timeout 180 factorio/bin/x64/factorio \
             --disable-audio \
             --mod-directory "$PWD/mods" \
-            --create "$PWD/test-save.zip"
+            --create "$PWD/test-save.zip" \
+            2>&1 | tee "factorio-${CONFIGURATION}.log"
+
+      - name: Collect Factorio logs
+        if: always()
+        shell: bash
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          mkdir -p factorio-logs
+          cp "factorio-${CONFIGURATION}.log" "factorio-logs/" 2>/dev/null || true
+          find factorio -maxdepth 3 -type f -name '*.log' -exec cp {} factorio-logs/ \; 2>/dev/null || true
+          find . -maxdepth 3 -type f -name 'factorio-current.log' -exec cp {} factorio-logs/ \; 2>/dev/null || true
+
+      - name: Upload Factorio logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: factorio-${{ matrix.configuration }}-logs
+          path: factorio-logs/
+          archive: false
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Fail when Factorio cannot load the mod
+        if: steps.factorio.outcome == 'failure'
+        run: |
+          echo "::error::Factorio failed to create the ${{ matrix.configuration }} test save. See the uploaded log artifact."
+          exit 1
