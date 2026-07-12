@@ -1,0 +1,128 @@
+         return
+     end
+ 
+@@ -526,7 +568,7 @@
+         return
+     end
+ 
+-    if not ghost.valid then
++    if not (ghost and ghost.valid) then
+         return insert_or_spill_items(player, { data.item_stack })
+     end
+ 
+@@ -546,46 +588,36 @@
+ 
+     create_projectile('nano-projectile-constructors', entity.surface, entity.force, player.character.position, entity.position)
+     surface.play_sound { path = 'utility/build_small', position = entity.position }
+-    entity.health = (entity.health > 0) and ((data.item_stack.health or 1) * entity.max_health)
++    if entity.health and entity.max_health then
++        entity.health = math.max(1, (data.item_stack.health or 1) * entity.max_health)
++    end
+ end
+ 
+ --- @param data Nanobots.data
+ function Queue.item_requests(data)
+     local proxy = data.entity
+     local player = game.get_player(data.player_index)
+-    local target = proxy.valid and proxy.proxy_target ---@type LuaEntity
+     if not (player and player.valid) then
+         return
+     end
+ 
+-    if not (proxy.valid and target and target.valid) then
+-        return insert_or_spill_items(player, { data.item_stack })
++    local target = proxy and proxy.valid and proxy.proxy_target
++    if not (proxy and proxy.valid and target and target.valid) then
++        return insert_or_spill_items(player, data.item_stack)
+     end
+ 
+     if not target.can_insert(data.item_stack) then
+-        return insert_or_spill_items(player, { data.item_stack })
++        return insert_or_spill_items(player, data.item_stack)
+     end
+ 
+     create_projectile('nano-projectile-constructors', proxy.surface, proxy.force, player.character.position, proxy.position)
+-    local item_stack = data.item_stack
+-    local requests = proxy.item_requests
+-    local inserted = target.insert(item_stack)
+-    item_stack.count = item_stack.count - inserted
+-
+-    if item_stack.count > 0 then
+-        insert_or_spill_items(player, { item_stack })
++    local inserted = target.insert(data.item_stack)
++    if inserted < data.item_stack.count then
++        local remainder = item_definition(data.item_stack, data.item_stack.count - inserted)
++        insert_or_spill_items(player, remainder)
+     end
+ 
+-    requests[item_stack.name] = requests[item_stack.name] - inserted
+-    for k, count in pairs(requests) do
+-        if count == 0 then
+-            requests[k] = nil
+-        end
+-    end
+-
+-    if table_size(requests) > 0 then
+-        proxy.item_requests = requests
+-    else
++    if proxy.valid and #(proxy.item_requests or {}) == 0 then
+         proxy.destroy()
+     end
+ end
+@@ -718,8 +750,12 @@
+                                 end -- repair
+                             elseif ghost.name == 'item-request-proxy' and cfg.do_proxies then
+                                 local items = {}
+-                                for item, count in pairs(ghost.item_requests) do
+-                                    items[#items + 1] = { name = item, count = count }
++                                for _, request in pairs(ghost.item_requests or {}) do
++                                    items[#items + 1] = {
++                                        name = request.name,
++                                        count = request.count,
++                                        quality = item_quality_name(request)
++                                    }
+                                 end
+                                 local item_stack = table_find(items, _find_item, player, true)
+                                 if item_stack then
+@@ -774,11 +810,13 @@
+ -- The Tick Handler
+ --- @param event on_tick
+ local function poll_players(event)
+-    -- Run logic for nanobots and power armor modules
+-    -- if event.tick % math.ceil(#game.connected_players/cfg.poll_rate) == 0 then
+-    if event.tick % max(1, floor(cfg.poll_rate / #game.connected_players)) == 0 then
+-        local last_player, player = next(game.connected_players, storage._last_player)
+-        -- Establish connected, non afk, player character
++    local connected = game.connected_players
++    local player_count = #connected
++    if player_count > 0 and event.tick % max(1, floor(cfg.poll_rate / player_count)) == 0 then
++        local last_player, player = next(connected, storage._last_player)
++        if not player then
++            last_player, player = next(connected)
++        end
+         if player and is_connected_player_ready(player) then
+             if cfg.nanobots_auto and (not cfg.network_limits or nano_network_check(player.character)) then
+                 local gun, nano_ammo, ammo_name = get_gun_ammo_name(player, 'gun-nano-emitter')
+@@ -788,15 +826,17 @@
+                     elseif ammo_name == 'ammo-nano-termites' then
+                         everyone_hates_trees(player, player.character.position, nano_ammo)
+                     end
+-                end -- Gun and Ammo check
++                end
+             end
+             if cfg.equipment_auto then
+                 armormods.prepare_chips(player)
+-            end -- Auto Equipment
+-        end -- Player Ready
++            end
++        end
+         storage._last_player = last_player
+-    end -- NANO Automatic scripts
+-    queue:execute(event)
++    end
++    if queue then
++        queue:execute(event)
++    end
+ end
+ Event.register(defines.events.on_tick, poll_players)
+ 
