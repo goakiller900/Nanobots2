@@ -1,0 +1,154 @@
+name: Build and release Factorio mod
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: factorio-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install packaging tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes --quiet jq rsync zip unzip
+
+      - name: Read metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="$(jq -er .name info.json)"
+          version="$(jq -er .version info.json)"
+          title="$(jq -er '.title // .name' info.json)"
+          package="${name}_${version}"
+          ref_name="${GITHUB_REF_NAME}"
+          branch_slug="$(printf '%s' "$ref_name" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-80)"
+          {
+            echo "name=$name"
+            echo "version=$version"
+            echo "title=$title"
+            echo "package=$package"
+            echo "archive=${package}.zip"
+            echo "checksum=${package}.zip.sha256"
+            echo "tag=v${version}"
+            echo "branch_name=$ref_name"
+            echo "branch_slug=${branch_slug:-branch}"
+            echo "branch_tag=branch-${branch_slug:-branch}"
+            echo "short_sha=${GITHUB_SHA:0:7}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build archive
+        shell: bash
+        env:
+          PACKAGE: ${{ steps.meta.outputs.package }}
+          ARCHIVE: ${{ steps.meta.outputs.archive }}
+          CHECKSUM: ${{ steps.meta.outputs.checksum }}
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/$PACKAGE"
+          excludes=(--exclude='.git/' --exclude='.github/' --exclude='.pdn/' --exclude='dist/' --exclude='*.zip' --exclude='.gitignore' --exclude='.mailmap')
+          while IFS= read -r pattern; do
+            [[ -n "$pattern" ]] && excludes+=(--exclude="$pattern")
+          done < <(jq -r '.package.ignore[]?' info.json)
+          rsync -a --prune-empty-dirs "${excludes[@]}" ./ "dist/$PACKAGE/"
+          (cd dist && zip -qr "$ARCHIVE" "$PACKAGE" && sha256sum "$ARCHIVE" > "$CHECKSUM")
+
+      - name: Verify archive
+        shell: bash
+        env:
+          PACKAGE: ${{ steps.meta.outputs.package }}
+          ARCHIVE: ${{ steps.meta.outputs.archive }}
+          MOD_NAME: ${{ steps.meta.outputs.name }}
+          MOD_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          archive="dist/$ARCHIVE"
+          mapfile -t roots < <(unzip -Z1 "$archive" | sed '/^$/d' | cut -d/ -f1 | sort -u)
+          [[ ${#roots[@]} -eq 1 && "${roots[0]}" == "$PACKAGE" ]]
+          [[ "$(unzip -p "$archive" "$PACKAGE/info.json" | jq -r .name)" == "$MOD_NAME" ]]
+          [[ "$(unzip -p "$archive" "$PACKAGE/info.json" | jq -r .version)" == "$MOD_VERSION" ]]
+          if unzip -Z1 "$archive" | grep -Eq "^$PACKAGE/(\.git|\.github|\.pdn|dist)(/|$)"; then
+            echo "::error::Development files were included in the archive."
+            exit 1
+          fi
+
+      - name: Create or update branch prerelease
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref != 'refs/heads/master' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_TAG: ${{ steps.meta.outputs.branch_tag }}
+          BRANCH_NAME: ${{ steps.meta.outputs.branch_name }}
+          TITLE: ${{ steps.meta.outputs.title }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          ARCHIVE: dist/${{ steps.meta.outputs.archive }}
+          CHECKSUM: dist/${{ steps.meta.outputs.checksum }}
+        run: |
+          set -euo pipefail
+          if gh release view "$BRANCH_TAG" >/dev/null 2>&1; then
+            gh release delete "$BRANCH_TAG" --yes --cleanup-tag
+          elif git ls-remote --exit-code --tags origin "refs/tags/$BRANCH_TAG" >/dev/null 2>&1; then
+            git push origin ":refs/tags/$BRANCH_TAG"
+          fi
+          gh release create "$BRANCH_TAG" "$ARCHIVE" "$CHECKSUM" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "$TITLE $VERSION — $BRANCH_NAME ($SHORT_SHA)" \
+            --notes "Automatic test build from branch \`$BRANCH_NAME\` at commit \`$GITHUB_SHA\`. This is not a stable release."
+
+      - name: Create immutable stable release
+        if: ${{ github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          TITLE: ${{ steps.meta.outputs.title }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          ARCHIVE: dist/${{ steps.meta.outputs.archive }}
+          CHECKSUM: dist/${{ steps.meta.outputs.checksum }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            mkdir -p /tmp/existing-release
+            gh release download "$TAG" --pattern "$(basename "$ARCHIVE")" --dir /tmp/existing-release
+            existing="/tmp/existing-release/$(basename "$ARCHIVE")"
+            if [[ "$(sha256sum "$existing" | awk '{print $1}')" != "$(sha256sum "$ARCHIVE" | awk '{print $1}')" ]]; then
+              echo "::error::$TAG already exists with different contents. Increase info.json version."
+              exit 1
+            fi
+          else
+            gh release create "$TAG" "$ARCHIVE" "$CHECKSUM" \
+              --target "$GITHUB_SHA" --title "$TITLE $VERSION" --generate-notes
+          fi
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.meta.outputs.archive }}
+          path: dist/${{ steps.meta.outputs.archive }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.meta.outputs.checksum }}
+          path: dist/${{ steps.meta.outputs.checksum }}
+          archive: false
+          if-no-files-found: error
