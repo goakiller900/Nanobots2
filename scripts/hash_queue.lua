@@ -1,4 +1,4 @@
-local table = require('__stdlib2__/stdlib/utils/table')
+local table = require('__stdlib2-continued__/stdlib/utils/table')
 
 local function NtoZ_c(x, y)
     return (x >= 0 and x or (-0.5 - x)), (y >= 0 and y or (-0.5 - y))
@@ -11,21 +11,29 @@ local function cantorPair_v7(pos)
     return h + h
 end
 
+local function entity_index(entity, fallback_unit_number, fallback_position)
+    if entity and entity.valid then
+        return entity.unit_number or cantorPair_v7(entity.position)
+    end
+    return fallback_unit_number or (fallback_position and cantorPair_v7(fallback_position))
+end
+
 local Queue = {}
 
 function Queue.new(t)
     if t and t._hash then
         return setmetatable(t, Queue.mt)
-    else
-        return setmetatable({_hash = {}}, Queue.mt)
     end
+    return setmetatable({_hash = {}}, Queue.mt)
 end
 
 function Queue.set_hash(t, data)
-    local index = data.entity.unit_number or cantorPair_v7(data.entity.position)
-    local hash = t._hash
-    hash[index] = hash[index] or {}
-    hash[index][data.action] = data.action
+    local index = entity_index(data.entity, data.unit_number, data.position)
+    if not index then
+        return nil
+    end
+    t._hash[index] = t._hash[index] or {}
+    t._hash[index][data.action] = true
     return index
 end
 
@@ -36,21 +44,21 @@ function Queue.count(t)
             count = count + 1
         end
     end
-
     return count, table.size(t._hash)
 end
 
 function Queue.get_hash(t, entity)
-    local index = entity.unit_number or cantorPair_v7(entity.position)
-    return t._hash[index]
+    local index = entity_index(entity)
+    return index and t._hash[index] or nil
 end
 
 function Queue.insert(t, data, tick, count)
     data.hash = Queue.set_hash(t, data)
-
+    if not data.hash then
+        return t, count
+    end
     t[tick] = t[tick] or {}
     t[tick][#t[tick] + 1] = data
-
     return t, count
 end
 
@@ -73,29 +81,29 @@ function Queue.next(t, _next_tick, tick_spacing, dont_combine)
     return next_tick, queue_count
 end
 
---Tick handler, handles executing multiple data tables in a queue
 function Queue.execute(t, event)
-    if t[event.tick] then
-        for _, data in ipairs(t[event.tick]) do
-            local index = data.hash
-            if Queue[data.action] then
-                Queue[data.action](data)
-            end
-            t._hash[index][data.action] = nil
-            if table.size(t._hash[index]) <= 0 then
+    local entries = t[event.tick]
+    if not entries then
+        return t
+    end
+
+    for _, data in ipairs(entries) do
+        local index = data.hash
+        local action = Queue[data.action]
+        if action then
+            action(data)
+        end
+        local bucket = index and t._hash[index]
+        if bucket then
+            bucket[data.action] = nil
+            if table.size(bucket) == 0 then
                 t._hash[index] = nil
             end
         end
-        t[event.tick] = nil
     end
+    t[event.tick] = nil
     return t
 end
 
 Queue.mt = {__index = Queue, __call = nil}
-local mt = {
-    __call = function(_, ...)
-        return Queue.new(...)
-    end
-}
-
-return setmetatable(Queue, mt)
+return setmetatable(Queue, {__call = function(_, ...) return Queue.new(...) end})

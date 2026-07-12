@@ -1,4 +1,32 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.0
+Date: 2026-07-12
+  Features:
+    - Added full Factorio 2.1 support.
+    - Renamed the continuation to Nanobots2-continued and updated the dependency to stdlib2-continued.
+    - Added verified Factorio-compatible packaging and automatic GitHub releases.
+  Changes:
+    - Updated item requests and constant combinator handling for the Factorio 2.1 APIs.
+    - Added quality-aware item transfer for building, upgrades, request proxies, returns, and spills.
+    - Refreshed the README, metadata, compatibility notes, and release documentation.
+    - Replaced obsolete CI and external publishing scripts with deterministic validation and release workflows.
+  Bugfixes:
+    - Fixed crashes caused by missing item prototypes in blueprint and module requests.
+    - Fixed a leaked global variable while checking powered equipment.
+    - Fixed invalid entity access during queued upgrades and deleted queue targets.
+    - Fixed division by zero when no players are connected.
+    - Fixed partial inventory removal consuming items when a complete build stack was unavailable.
+    - Fixed roboport interface signal reading, network inventory thresholds, and obsolete raw-wood references.
+    - Fixed ghost revival and item-request-proxy handling for Factorio 2.1.
+---------------------------------------------------------------------------------------------------
+Version: 3.3.2
+Date: 2025-03-12
+  Changes:
+    - Updated metadata for the final Factorio 2.0 maintenance release.
+  Bugfixes:
+    - Restored assets removed from later Factorio 2.0 releases.
+    - Corrected character-position use, roboport equipment, cliff deconstruction, and technology progression.
+---------------------------------------------------------------------------------------------------
 Version: 3.3.1
 Date: 2024-10-28
   Bugfixes: Fixed roboport module usage.

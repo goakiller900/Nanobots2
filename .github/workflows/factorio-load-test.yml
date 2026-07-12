@@ -1,0 +1,74 @@
+name: Factorio 2.1 load test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: Load with ${{ matrix.configuration }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [base, space-age]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes --quiet jq zip rsync
+
+      - name: Download Factorio 2.1 headless
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://factorio.com/get-download/experimental/headless/linux64 \
+            --output factorio.tar.xz
+          tar -xJf factorio.tar.xz
+
+      - name: Prepare mods
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          name="$(jq -r .name info.json)"
+          version="$(jq -r .version info.json)"
+          package="${name}_${version}"
+          mkdir -p "mods/${package}" dist
+          rsync -a --exclude='.git/' --exclude='.github/' --exclude='.pdn/' --exclude='mods/' --exclude='dist/' ./ "mods/${package}/"
+          (cd mods && zip -qr "${package}.zip" "${package}")
+          cp "mods/${package}.zip" "dist/${package}.zip"
+          rm -rf "mods/${package}"
+
+          gh release download v2.1.0 \
+            --repo goakiller900/stdlib2 \
+            --pattern 'stdlib2-continued_2.1.0.zip' \
+            --dir mods
+
+          if [[ "$CONFIGURATION" == "space-age" ]]; then
+            enabled='["base","quality","elevated-rails","space-age","stdlib2-continued","Nanobots2-continued"]'
+          else
+            enabled='["base","stdlib2-continued","Nanobots2-continued"]'
+          fi
+          jq -n --argjson enabled "$enabled" \
+            '{mods: [$enabled[] | {name: ., enabled: true}]}' > mods/mod-list.json
+
+      - name: Create test save
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180 factorio/bin/x64/factorio \
+            --disable-audio \
+            --mod-directory "$PWD/mods" \
+            --create "$PWD/test-save.zip"

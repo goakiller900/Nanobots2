@@ -1,17 +1,97 @@
+name: Finish Nanobots 2.1 port
+
 on:
   push:
     branches:
-    - master
+      - agent/nanobots-2.1-continued
   pull_request:
     branches:
-    - master
-name: Luacheck
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
-  lint:
+  finish:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
-      - name: lint
-        uses: Roang-zero1/factorio-mod-luacheck@master
+      - name: Check out branch head
+        uses: actions/checkout@v7
         with:
-          luacheckrc_url: https://raw.githubusercontent.com/Nexela/Factorio-luacheckrc/master/.luacheckrc
+          ref: agent/nanobots-2.1-continued
+          fetch-depth: 0
+
+      - name: Apply verified source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          import zipfile
+
+          archive = Path('.port-payload/final.zip')
+          target = Path('/tmp/nanobots-port')
+          if target.exists():
+              shutil.rmtree(target)
+          target.mkdir(parents=True)
+
+          with zipfile.ZipFile(archive) as package:
+              bad = package.testzip()
+              if bad:
+                  raise SystemExit(f'Corrupt member in source archive: {bad}')
+              package.extractall(target)
+
+          source = target / 'files'
+          if not (source / 'scripts' / 'nanobots.lua').is_file():
+              raise SystemExit('Verified archive does not contain scripts/nanobots.lua')
+
+          for child in source.iterdir():
+              destination = Path(child.name)
+              if child.is_dir():
+                  shutil.copytree(child, destination, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(child, destination)
+
+          deletions = [line.strip() for line in (target / 'delete.txt').read_text().splitlines() if line.strip()]
+          for name in deletions:
+              path = Path(name)
+              if path.is_dir():
+                  shutil.rmtree(path)
+              elif path.exists():
+                  path.unlink()
+          PY
+
+      - name: Validate completed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes --quiet jq lua5.2
+          test "$(jq -r .name info.json)" = "Nanobots2-continued"
+          test "$(jq -r .version info.json)" = "3.4.0"
+          test "$(jq -r .factorio_version info.json)" = "2.1"
+          jq -e '.dependencies | index("stdlib2-continued >= 2.1.0") != null' info.json >/dev/null
+          test ! -e .port-payload
+          test ! -e .github/workflows/apply-port.yml
+          test ! -e .github/workflows/export-source.yml
+          test ! -e .github/workflows/luacheck.yml
+          while IFS= read -r -d '' file; do
+            luac5.2 -p "$file"
+          done < <(find . -type f -name '*.lua' -not -path './.git/*' -print0)
+          if grep -RIn --exclude-dir=.git --exclude-dir=.github -E '__Nanobots2__/|__stdlib2__/' .; then
+            echo "::error::Legacy mod import paths remain."
+            exit 1
+          fi
+
+      - name: Commit clean completed port
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Complete Nanobots Factorio 2.1 continuation port"
+          git push origin HEAD:agent/nanobots-2.1-continued
