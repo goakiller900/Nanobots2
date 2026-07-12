@@ -1,38 +1,47 @@
-# Follow-up push intentionally triggers this already-installed workflow.
-name: Apply Nanobots 2.1 port
+name: Finish Nanobots 2.1 cleanup
 
 on:
   push:
     branches:
-      - agent/nanobots-2.1-continued
+      - agent/finish-nanobots-2.1-cleanup
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  apply:
+  finish:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out cleanup branch
         uses: actions/checkout@v7
         with:
+          ref: agent/finish-nanobots-2.1-cleanup
           fetch-depth: 0
 
-      - name: Verify and apply port payload
+      - name: Apply completed runtime patch
         shell: bash
         run: |
           set -euo pipefail
-          echo "467281e0cd64a77a0dd3134281fd99f59b5b89856fae2a2bae8a7165f834ce34  .port-payload/final.zip" | sha256sum --check
-          rm -rf /tmp/nanobots-port
-          mkdir -p /tmp/nanobots-port
-          unzip -q .port-payload/final.zip -d /tmp/nanobots-port
-          rsync -a /tmp/nanobots-port/files/ ./
-          while IFS= read -r path; do
-            [[ -n "$path" ]] && rm -rf -- "$path"
-          done < /tmp/nanobots-port/delete.txt
+          echo "495acb33ceea98e12e49e79916fdfc3f2ce0a9ec2906cfd311dde530ab0e7804  scripts/nanobots.lua" | sha256sum --check
+          cat .github/port-patches/nanobots-*.patch > /tmp/nanobots.patch
+          echo "80c3a8dc8a04600eaf1bfdd3affe22c8c82cc9f70dd4b1c3d59a3023adfd7d67  /tmp/nanobots.patch" | sha256sum --check
+          git apply --check /tmp/nanobots.patch
+          git apply /tmp/nanobots.patch
+          echo "4aee91f9b933ec3ce9294cc771f694a794ac6d070e1739c73581a92686ce2030  scripts/nanobots.lua" | sha256sum --check
 
-      - name: Validate applied source
+      - name: Remove migration debris
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf \
+            .github/port-patches \
+            .github/workflows/apply-port.yml \
+            .github/workflows/export-source.yml \
+            .github/workflows/luacheck.yml \
+            .port-payload
+
+      - name: Validate cleaned source
         shell: bash
         run: |
           set -euo pipefail
@@ -48,13 +57,18 @@ jobs:
             echo "::error::Legacy mod import paths remain."
             exit 1
           fi
+          test ! -e .port-payload
+          test ! -e .github/port-patches
+          test ! -e .github/workflows/apply-port.yml
+          test ! -e .github/workflows/export-source.yml
+          test ! -e .github/workflows/luacheck.yml
 
-      - name: Commit completed port
+      - name: Commit clean completed port
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Port Nanobots continuation to Factorio 2.1"
-          git push origin HEAD:agent/nanobots-2.1-continued
+          git commit -m "Finish Nanobots 2.1 runtime port and remove migration files"
+          git push origin HEAD:agent/finish-nanobots-2.1-cleanup
