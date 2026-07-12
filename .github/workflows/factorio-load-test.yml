@@ -95,7 +95,6 @@ jobs:
         with:
           name: factorio-${{ matrix.configuration }}-logs
           path: factorio-logs/
-          archive: false
           if-no-files-found: warn
           retention-days: 7
 
