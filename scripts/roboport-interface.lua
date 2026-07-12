@@ -1,9 +1,9 @@
 -------------------------------------------------------------------------------
 --[[roboport-interface]]
 -------------------------------------------------------------------------------
-local Event = require('__stdlib2__/stdlib/event/event')
-local Position = require('__stdlib2__/stdlib/area/position')
-local table = require('__stdlib2__/stdlib/utils/table')
+local Event = require('__stdlib2-continued__/stdlib/event/event')
+local Position = require('__stdlib2-continued__/stdlib/area/position')
+local table = require('__stdlib2-continued__/stdlib/utils/table')
 local Queue = require('scripts/hash_queue')
 local queue
 
@@ -13,7 +13,7 @@ local params_to_check = {
     ['nano-signal-chop-trees'] = {
         action = 'mark_items_or_trees',
         find_type = 'tree',
-        item_name = 'raw-wood'
+        item_name = 'wood'
     },
     ['nano-signal-item-on-ground'] = {
         action = 'mark_items_or_trees',
@@ -40,7 +40,7 @@ local params_to_check = {
 }
 
 --[[
-raw-wood-cutting, scan for trees, if value is negative only scan for trees if wood in network is less then that amount
+wood threshold, scan for trees, if value is negative only scan for trees if wood in network is less then that amount
 tile-item, scan for tiles, only checks first signal, if negative, will not place tiles unless that many are in network.
 item-on-ground-sig, Scan for items on ground, if found cell will check for items-ground and mark for pickup if no enemies in range
 networks-sig
@@ -63,11 +63,17 @@ parameters ={
     },
 }
 --]]
-local function get_parameters(params)
+local function get_parameters(behaviour)
     local parameters = {}
-    for _, param in pairs(params) do
-        if param.signal.name then
-            parameters[param.signal.name] = param.count
+    for _, section in pairs(behaviour.sections or {}) do
+        if section.valid and section.active then
+            local multiplier = section.multiplier or 1
+            for _, filter in pairs(section.filters or {}) do
+                local signal = filter.value
+                if signal and signal.name then
+                    parameters[signal.name] = (parameters[signal.name] or 0) + ((filter.min or 0) * multiplier)
+                end
+            end
         end
     end
     return parameters
@@ -79,7 +85,7 @@ end
 
 Queue.mark_items_or_trees =
     function(data)
-    if data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
+    if data.logistic_cell and data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
         local surface, force, position = get_entity_info(data.logistic_cell.owner)
         if not (data.find_type or data.find_name) then
             data.find_type = 'NIL'
@@ -95,7 +101,7 @@ Queue.mark_items_or_trees =
             local available_bots = floor(data.logistic_cell.logistic_network.available_construction_robots - (data.logistic_cell.logistic_network.all_construction_robots * (config['nanobots-free-bots-per'].value / 100)))
             local limit = -99999999999
             if data.value < 0 and data.item_name then
-                limit = (data.logistic_cell.logistic_network.get_contents()[data.item_name] or 0) + data.value
+                limit = data.logistic_cell.logistic_network.get_item_count(data.item_name) + data.value
             end
 
             for _, item in pairs(surface.find_entities_filtered(filter)) do
@@ -127,7 +133,7 @@ end
 
 Queue.deconstruct_finished_miners = function(data)
     if not script.active_mods['AutoDeconstruct'] then
-        if data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
+        if data.logistic_cell and data.logistic_cell.valid and data.logistic_cell.construction_radius > 0 and data.logistic_cell.logistic_network then
             local surface, force, position = get_entity_info(data.logistic_cell.owner)
             local filter = {area = Position.expand_to_area(position, data.logistic_cell.construction_radius), type = data.find_type or 'error', force = force}
             for _, miner in pairs(surface.find_entities_filtered(filter)) do
@@ -155,16 +161,18 @@ local function find_network_and_cell(interface)
 end
 
 local function run_interface(interface)
+    if not (interface and interface.valid) then return end
     local behaviour = interface.get_control_behavior()
     if behaviour and behaviour.enabled then
         local logistic_network, logistic_cell = find_network_and_cell(interface)
         if logistic_network and logistic_network.available_construction_robots > logistic_network.all_construction_robots * (settings['global']['nanobots-free-bots-per'].value / 100) then
             local tick_spacing = settings['global']['nanobots-cell-queue-rate'].value
-            local parameters = get_parameters(behaviour.parameters)
+            local parameters = get_parameters(behaviour)
             --game.print(serpent.block(parameters, {comment=false, sparse=false}))
             -- If the closest roboport signal is present and > 0 then just run on the attached cell
             local just_cell = (parameters['nano-signal-closest-roboport'] or 0) > 0 and logistic_cell and {logistic_cell} or nil
             local fdata = storage.forces[logistic_cell.owner.force.name]
+            if not fdata then return end
             local next_tick = queue:next(fdata._next_cell_tick or game.tick, tick_spacing, true)
             for param_name, param_table in pairs(params_to_check) do
                 if (parameters[param_name] or 0) ~= 0 then
@@ -222,9 +230,9 @@ Event.register(
 --Build the interface, after built check the area around it for interface components to revive or create.
 local function build_roboport_interface(event)
     local interface = event.created_entity or event.entity
-    if interface and interface.name == 'roboport-interface-main' then
+    if interface and interface.valid and interface.name == 'roboport-interface-main' then
         local pos, force = interface.position, interface.force
-        local cc, ra = {}, {} -- Don't listen the masses.... a little gc churn later is two less type() calls now.
+        local cc, ra -- Don't listen the masses.... a little gc churn later is two less type() calls now.
         for _, entity in pairs(interface.surface.find_entities_filtered {position = pos, force = force}) do
             if entity ~= interface then
                 --If we have ghosts either via blueprint or something killed them
@@ -242,10 +250,10 @@ local function build_roboport_interface(event)
             end
         end
         --If neither CC or RA are valid at this point then let us create them.
-        if not cc.valid then
+        if not (cc and cc.valid) then
             cc = interface.surface.create_entity {name = 'roboport-interface-cc', position = pos, force = force}
         end
-        if not ra.valid then
+        if not (ra and ra.valid) then
             ra = interface.surface.create_entity {name = 'roboport-interface-scanner', position = pos, force = force}
         end
 
@@ -261,7 +269,7 @@ end
 Event.register(Event.build_events, build_roboport_interface)
 
 local function on_sector_scanned(event)
-    if event.radar.name == 'roboport-interface-scanner' then
+    if event.radar and event.radar.valid and event.radar.name == 'roboport-interface-scanner' then
         local entity = event.radar
         local interface = entity.surface.find_entities_filtered {name = 'roboport-interface-cc', position = entity.position, limit = 1}[1]
         if interface and interface.valid then
