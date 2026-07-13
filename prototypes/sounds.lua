@@ -1,4 +1,4 @@
-local Data = require('__stdlib2-continued__/stdlib/data/data')
+local Data = require('__kry_stdlib__/stdlib/data/data')
 
 Data{
     type = 'sound',

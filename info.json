@@ -1,6 +1,6 @@
 {
   "name": "Nanobots2-continued",
-  "version": "3.4.2",
+  "version": "3.4.3",
   "factorio_version": "2.1",
   "title": "Nanobots: Early Bots Continued",
   "author": "Nexela; Factorio 2.1 continuation maintained by goakiller900",
@@ -9,7 +9,7 @@
   "description": "Early-game consumable construction nanobots, automatic equipment modules, and a programmable roboport interface. Community-maintained continuation for Factorio 2.1.",
   "dependencies": [
     "base >= 2.1.0",
-    "stdlib2-continued >= 2.1.0",
+    "kry_stdlib >= 2.2.4",
     "! Nanobots2",
     "? boblibrary",
     "? PickerInventoryTools",

@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
 -- Logistic network roboport interface
 -------------------------------------------------------------------------------
-local Data = require('__stdlib2-continued__/stdlib/data/data')
-local Recipe = require('__stdlib2-continued__/stdlib/data/recipe')
+local Data = require('__kry_stdlib__/stdlib/data/data')
+local Recipe = require('__kry_stdlib__/stdlib/data/recipe')
 
 Data {
     type = 'technology',
