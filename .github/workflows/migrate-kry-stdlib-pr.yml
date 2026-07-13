@@ -38,13 +38,12 @@ jobs:
             luac5.2 -p "$file"
           done < <(find . -type f -name '*.lua' -not -path './.git/*' -print0)
 
-      - name: Commit migration
+      - name: Commit source migration
         shell: bash
         run: |
           set -euo pipefail
+          git restore --source=HEAD -- .github/workflows/validate.yml .github/workflows/factorio-load-test.yml
           rm .github/migrate-kry-stdlib.py
-          rm .github/workflows/migrate-kry-stdlib.yml
-          rm .github/workflows/migrate-kry-stdlib-pr.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
