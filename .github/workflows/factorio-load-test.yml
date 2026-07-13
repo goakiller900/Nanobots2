@@ -51,9 +51,9 @@ jobs:
           cp "mods/${package}.zip" "dist/${package}.zip"
           rm -rf "mods/${package}"
 
-          gh release download v2.1.0 \
+          gh release download v2.1.2 \
             --repo goakiller900/stdlib2 \
-            --pattern 'stdlib2-continued_2.1.0.zip' \
+            --pattern 'stdlib2-continued_2.1.2.zip' \
             --dir mods
 
           if [[ "$CONFIGURATION" == "space-age" ]]; then
