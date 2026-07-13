@@ -39,6 +39,7 @@ jobs:
         shell: bash
         env:
           CONFIGURATION: ${{ matrix.configuration }}
+          FACTORIO_MOD_PORTAL_API_KEY: ${{ secrets.FACTORIO_MOD_PORTAL_API_KEY }}
         run: |
           set -euo pipefail
           name="$(jq -r .name info.json)"
@@ -54,7 +55,8 @@ jobs:
             https://mods.factorio.com/api/mods/kry_stdlib/full \
             --output /tmp/kry-stdlib.json
           download_url="$(jq -er '.releases[] | select(.version == "2.2.4") | .download_url' /tmp/kry-stdlib.json)"
-          curl --fail --location --retry 3 \
+          curl --fail-with-body --location --retry 3 \
+            --header "Authorization: Bearer ${FACTORIO_MOD_PORTAL_API_KEY}" \
             "https://mods.factorio.com${download_url}" \
             --output mods/kry_stdlib_2.2.4.zip
 
