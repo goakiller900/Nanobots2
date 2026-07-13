@@ -104,7 +104,7 @@ jobs:
       - name: Publish release to Factorio Mod Portal
         shell: bash
         env:
-          FACTORIO_MOD_PORTAL_API_KEY: ${{ secrets.FACTORIO_MOD_PORTAL_API_KEY }}
+          FACTORIO_API_KEY: ${{ secrets.FACTORIO_API_KEY }}
           MOD_NAME: ${{ steps.meta.outputs.name }}
           MOD_VERSION: ${{ steps.meta.outputs.version }}
           ARCHIVE: ${{ steps.meta.outputs.archive }}
@@ -113,8 +113,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "${FACTORIO_MOD_PORTAL_API_KEY}" ]]; then
-            echo "::error::Repository secret FACTORIO_MOD_PORTAL_API_KEY is not configured."
+          if [[ -z "${FACTORIO_API_KEY}" ]]; then
+            echo "::error::Repository secret FACTORIO_API_KEY is not configured."
             exit 1
           fi
 
@@ -153,7 +153,7 @@ jobs:
 
           init_response="$(
             curl --fail --silent --show-error \
-              -H "Authorization: Bearer ${FACTORIO_MOD_PORTAL_API_KEY}" \
+              -H "Authorization: Bearer ${FACTORIO_API_KEY}" \
               -F "mod=${MOD_NAME}" \
               "${init_endpoint}"
           )"
