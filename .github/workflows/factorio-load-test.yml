@@ -39,9 +39,16 @@ jobs:
         shell: bash
         env:
           CONFIGURATION: ${{ matrix.configuration }}
-          FACTORIO_MOD_PORTAL_API_KEY: ${{ secrets.FACTORIO_MOD_PORTAL_API_KEY }}
+          FACTORIO_USERNAME: ${{ secrets.FACTORIO_USERNAME }}
+          FACTORIO_TOKEN: ${{ secrets.FACTORIO_TOKEN }}
         run: |
           set -euo pipefail
+
+          if [[ -z "${FACTORIO_USERNAME}" || -z "${FACTORIO_TOKEN}" ]]; then
+            echo "::error::The Factorio load test requires repository secrets FACTORIO_USERNAME and FACTORIO_TOKEN to download kry_stdlib from the Mod Portal."
+            exit 1
+          fi
+
           name="$(jq -r .name info.json)"
           version="$(jq -r .version info.json)"
           package="${name}_${version}"
@@ -55,9 +62,10 @@ jobs:
             https://mods.factorio.com/api/mods/kry_stdlib/full \
             --output /tmp/kry-stdlib.json
           download_url="$(jq -er '.releases[] | select(.version == "2.2.4") | .download_url' /tmp/kry-stdlib.json)"
+          username="$(jq -rn --arg value "${FACTORIO_USERNAME}" '$value | @uri')"
+          token="$(jq -rn --arg value "${FACTORIO_TOKEN}" '$value | @uri')"
           curl --fail-with-body --location --retry 3 \
-            --header "Authorization: Bearer ${FACTORIO_MOD_PORTAL_API_KEY}" \
-            "https://mods.factorio.com${download_url}" \
+            "https://mods.factorio.com${download_url}?username=${username}&token=${token}" \
             --output mods/kry_stdlib_2.2.4.zip
 
           if [[ "$CONFIGURATION" == "space-age" ]]; then
