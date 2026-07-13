@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install --yes --quiet jq zip rsync
+        run: sudo apt-get update -qq && sudo apt-get install --yes --quiet jq zip unzip rsync
 
       - name: Download Factorio 2.1 headless
         shell: bash
@@ -38,30 +38,97 @@ jobs:
       - name: Prepare mods
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           CONFIGURATION: ${{ matrix.configuration }}
+          FACTORIO_USERNAME: ${{ secrets.FACTORIO_USERNAME }}
+          FACTORIO_TOKEN: ${{ secrets.FACTORIO_TOKEN }}
         run: |
           set -euo pipefail
-          name="$(jq -r .name info.json)"
-          version="$(jq -r .version info.json)"
+
+          if [[ -z "${FACTORIO_USERNAME}" || -z "${FACTORIO_TOKEN}" ]]; then
+            echo "::error::The Factorio load test requires repository secrets FACTORIO_USERNAME and FACTORIO_TOKEN to download kry_stdlib from the Mod Portal."
+            exit 1
+          fi
+
+          name="$(jq -er '.name' info.json)"
+          version="$(jq -er '.version' info.json)"
           package="${name}_${version}"
           mkdir -p "mods/${package}" dist
-          rsync -a --exclude='.git/' --exclude='.github/' --exclude='.pdn/' --exclude='mods/' --exclude='dist/' ./ "mods/${package}/"
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.pdn/' \
+            --exclude='mods/' \
+            --exclude='dist/' \
+            ./ "mods/${package}/"
           (cd mods && zip -qr "${package}.zip" "${package}")
           cp "mods/${package}.zip" "dist/${package}.zip"
           rm -rf "mods/${package}"
 
-          gh release download v2.1.2 \
-            --repo goakiller900/stdlib2 \
-            --pattern 'stdlib2-continued_2.1.2.zip' \
-            --dir mods
+          minimum_kry_version="$(
+            jq -er '
+              .dependencies[]
+              | select(test("^kry_stdlib\\s*>=\\s*[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | capture(">=\\s*(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)$").version
+            ' info.json
+          )"
 
-          if [[ "$CONFIGURATION" == "space-age" ]]; then
-            enabled='["base","quality","elevated-rails","space-age","stdlib2-continued","Nanobots2-continued"]'
+          curl --fail --location --retry 3 \
+            https://mods.factorio.com/api/mods/kry_stdlib/full \
+            --output /tmp/kry-stdlib.json
+
+          read -r kry_version kry_file_name kry_download_url < <(
+            python3 - "${minimum_kry_version}" /tmp/kry-stdlib.json <<'PY'
+          import json
+          import sys
+
+          minimum = tuple(int(part) for part in sys.argv[1].split("."))
+          with open(sys.argv[2], encoding="utf-8") as handle:
+              metadata = json.load(handle)
+
+          candidates = []
+          for release in metadata.get("releases", []):
+              try:
+                  version = tuple(int(part) for part in release["version"].split("."))
+              except (KeyError, ValueError):
+                  continue
+
+              info = release.get("info_json") or {}
+              if info.get("factorio_version") != "2.1" or version < minimum:
+                  continue
+
+              candidates.append((version, release))
+
+          if not candidates:
+              raise SystemExit(
+                  f"No kry_stdlib release for Factorio 2.1 satisfies >= {sys.argv[1]}."
+              )
+
+          _, selected = max(candidates, key=lambda item: item[0])
+          print(selected["version"], selected["file_name"], selected["download_url"])
+          PY
+          )
+
+          echo "Using kry_stdlib ${kry_version} from the Factorio Mod Portal."
+
+          curl --fail-with-body --location --retry 3 \
+            --get \
+            --data-urlencode "username=${FACTORIO_USERNAME}" \
+            --data-urlencode "token=${FACTORIO_TOKEN}" \
+            "https://mods.factorio.com${kry_download_url}" \
+            --output "mods/${kry_file_name}"
+
+          unzip -tq "mods/${kry_file_name}" >/dev/null
+          embedded_info="$(unzip -Z1 "mods/${kry_file_name}" | grep -E '^[^/]+/info\.json$' | head -n 1)"
+          test -n "${embedded_info}"
+          test "$(unzip -p "mods/${kry_file_name}" "${embedded_info}" | jq -er '.name')" = "kry_stdlib"
+          test "$(unzip -p "mods/${kry_file_name}" "${embedded_info}" | jq -er '.version')" = "${kry_version}"
+
+          if [[ "${CONFIGURATION}" == "space-age" ]]; then
+            enabled='["base","quality","elevated-rails","space-age","kry_stdlib","Nanobots2-continued"]'
           else
-            enabled='["base","stdlib2-continued","Nanobots2-continued"]'
+            enabled='["base","kry_stdlib","Nanobots2-continued"]'
           fi
-          jq -n --argjson enabled "$enabled" \
+          jq -n --argjson enabled "${enabled}" \
             '{mods: [$enabled[] | {name: ., enabled: true}]}' > mods/mod-list.json
 
       - name: Create test save

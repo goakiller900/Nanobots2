@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.3
+Date: 2026-07-13
+  Changes:
+    - Switched the stdlib dependency and import paths to kry_stdlib 2.2.4.
+    - Updated validation and Factorio load testing for the maintained stdlib package.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 3.4.2
 Date: 2026-07-12
   Bugfixes:

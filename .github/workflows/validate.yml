@@ -29,10 +29,14 @@ jobs:
           test "$(jq -r .name info.json)" = "Nanobots2-continued"
           [[ "$(jq -r .version info.json)" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           test "$(jq -r .factorio_version info.json)" = "2.1"
-          jq -e '.dependencies | index("stdlib2-continued >= 2.1.0") != null' info.json >/dev/null
+          jq -e '.dependencies | index("kry_stdlib >= 2.2.4") != null' info.json >/dev/null
           python3 - <<'PY'
           from pathlib import Path
-          legacy = ['__' + 'Nanobots2' + '__/', '__' + 'stdlib2' + '__/']
+          legacy = [
+              '__' + 'Nanobots2' + '__/',
+              '__' + 'stdlib2' + '__/',
+              '__' + 'stdlib2-continued' + '__/',
+          ]
           hits = []
           for path in Path('.').rglob('*'):
               if not path.is_file() or '.git' in path.parts or '.github' in path.parts:
@@ -58,7 +62,7 @@ jobs:
               if path.suffix not in {'.lua', '.cfg', '.json', '.md', '.txt'}:
                   continue
               text = path.read_text(encoding='utf-8', errors='ignore')
-              for match in re.findall(r'__Nanobots2-continued__/([^\"\']+)', text):
+              for match in re.findall(r'__Nanobots2-continued__/([^"\']+)', text):
                   target = root / match
                   if not target.is_file():
                       missing.append(f'{path}: {target}')

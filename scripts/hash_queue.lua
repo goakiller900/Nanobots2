@@ -1,4 +1,4 @@
-local table = require('__stdlib2-continued__/stdlib/utils/table')
+local table = require('__kry_stdlib__/stdlib/utils/table')
 
 local function NtoZ_c(x, y)
     return (x >= 0 and x or (-0.5 - x)), (y >= 0 and y or (-0.5 - y))

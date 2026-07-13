@@ -14,7 +14,7 @@ If the original maintainer returns and wants to resume maintenance, this continu
 
 - Factorio 2.1
 - Space Age is supported but optional
-- Requires `stdlib2-continued` 2.1.0 or newer
+- Requires `kry_stdlib` 2.2.4 or newer
 - Incompatible with the original `Nanobots2` package
 
 ## Early construction nanobots
@@ -85,7 +85,7 @@ Runtime settings control:
 The Factorio 2.1 continuation includes:
 
 - the new internal name `Nanobots2-continued`;
-- the `stdlib2-continued` dependency and import paths;
+- the `kry_stdlib` dependency and import paths;
 - Factorio 2.1 ghost-revival and item-request handling;
 - quality-aware item movement for Space Age compatibility;
 - current constant-combinator sections and filters;

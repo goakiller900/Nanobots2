@@ -1,4 +1,4 @@
-local Recipe = require('__stdlib2-continued__/stdlib/data/recipe')
+local Recipe = require('__kry_stdlib__/stdlib/data/recipe')
 
 require('prototypes/technology/shortcuts')
 
