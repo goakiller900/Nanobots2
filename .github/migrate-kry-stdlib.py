@@ -60,7 +60,7 @@ validate = validate_path.read_text(encoding='utf-8')
 validate = validate.replace('stdlib2-continued >= 2.1.0', 'kry_stdlib >= 2.2.4')
 validate = validate.replace(
     "legacy = ['__' + 'Nanobots2' + '__/', '__' + 'stdlib2' + '__/']",
-    "legacy = ['__' + 'Nanobots2' + '__/', '__' + 'stdlib2' + '__/', '__stdlib2-continued__/']",
+    "legacy = ['__' + 'Nanobots2' + '__/', '__' + 'stdlib2' + '__/', '__' + 'stdlib2-continued' + '__/']",
 )
 validate_path.write_text(validate, encoding='utf-8')
 
