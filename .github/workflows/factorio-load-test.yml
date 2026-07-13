@@ -38,7 +38,6 @@ jobs:
       - name: Prepare mods
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           CONFIGURATION: ${{ matrix.configuration }}
         run: |
           set -euo pipefail
@@ -51,15 +50,18 @@ jobs:
           cp "mods/${package}.zip" "dist/${package}.zip"
           rm -rf "mods/${package}"
 
-          gh release download v2.1.2 \
-            --repo goakiller900/stdlib2 \
-            --pattern 'stdlib2-continued_2.1.2.zip' \
-            --dir mods
+          curl --fail --location --retry 3 \
+            https://mods.factorio.com/api/mods/kry_stdlib/full \
+            --output /tmp/kry-stdlib.json
+          download_url="$(jq -er '.releases[] | select(.version == "2.2.4") | .download_url' /tmp/kry-stdlib.json)"
+          curl --fail --location --retry 3 \
+            "https://mods.factorio.com${download_url}" \
+            --output mods/kry_stdlib_2.2.4.zip
 
           if [[ "$CONFIGURATION" == "space-age" ]]; then
-            enabled='["base","quality","elevated-rails","space-age","stdlib2-continued","Nanobots2-continued"]'
+            enabled='["base","quality","elevated-rails","space-age","kry_stdlib","Nanobots2-continued"]'
           else
-            enabled='["base","stdlib2-continued","Nanobots2-continued"]'
+            enabled='["base","kry_stdlib","Nanobots2-continued"]'
           fi
           jq -n --argjson enabled "$enabled" \
             '{mods: [$enabled[] | {name: ., enabled: true}]}' > mods/mod-list.json
