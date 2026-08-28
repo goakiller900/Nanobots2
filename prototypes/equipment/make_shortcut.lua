@@ -1,12 +1,13 @@
-local Data = require('__kry_stdlib__/stdlib/data/data')
-
 local function make_shortcut(chip)
     if mods['PickerInventoryTools'] then
-        chip:copy('picker-disabled-' .. chip.name):set_fields {
-            localised_name = {'nano-disabled-equipment.disabled', chip.localised_name or {'equipment-name.' .. chip.name}}
+        local disabled_chip = table.deepcopy(chip)
+        disabled_chip.name = 'picker-disabled-' .. chip.name
+        disabled_chip.localised_name = {
+            'nano-disabled-equipment.disabled',
+            chip.localised_name or {'equipment-name.' .. chip.name}
         }
 
-        Data {
+        data:extend {disabled_chip, {
             type = 'shortcut',
             name = 'toggle-' .. chip.name,
             order = 'c[toggles]-z[' .. chip.name .. ']',
@@ -19,7 +20,7 @@ local function make_shortcut(chip)
             icon_size = chip.sprite.width or 64,
             small_icon = chip.sprite.filename,
             small_icon_size = chip.sprite.width or 64
-        }
+        }}
     end
 end
 

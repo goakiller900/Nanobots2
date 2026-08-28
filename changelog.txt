@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 3.4.4
+Date: 2026-08-28
+  Bugfixes:
+    - Fixed "Cannot serialise ttype=function" when used with Pyanodons Post Processing.
+  Changes:
+    - Removed kry_stdlib Data/Recipe wrappers from the Factorio data stage.
+    - Kept kry_stdlib runtime usage and behaviour intact.
+---------------------------------------------------------------------------------------------------
 Version: 3.4.3
 Date: 2026-07-13
   Changes:

@@ -70,6 +70,28 @@ jobs:
               raise SystemExit('Missing assets:\n' + '\n'.join(sorted(set(missing))))
           PY
 
+      - name: Reject stdlib data-stage wrappers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          data_stage_files = set(root.glob('data*.lua'))
+          data_stage_files.update(root.glob('settings*.lua'))
+          data_stage_files.update((root / 'prototypes').rglob('*.lua'))
+
+          forbidden = '__kry_stdlib__/stdlib/data/'
+          hits = [
+              str(path)
+              for path in sorted(data_stage_files)
+              if forbidden in path.read_text(encoding='utf-8', errors='ignore')
+          ]
+          if hits:
+              raise SystemExit(
+                  'kry_stdlib data-stage wrappers are forbidden:\n' + '\n'.join(hits)
+              )
+          PY
+
       - name: Parse Lua 5.2 source
         shell: bash
         run: |
